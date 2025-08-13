@@ -1,74 +1,120 @@
-/* Quasar App Extension entry */
+/* Quasar App Extension entry (refined, modular) */
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const { pushBootOnce, writeFromTemplate, safeDeleteFile } = require('./utils/helpers');
+const { findRouterFile, overrideHomeRouteComponent, addHomeRouteIfMissing } = require('./utils/router');
+
 module.exports = function (api) {
-  // compatibility
-  api.compatibleWith('quasar', '^2.0.0')
+  // Compatibility
+  api.compatibleWith('quasar', '^2.18.2');
   try {
-    api.compatibleWith('@quasar/app-vite', '^1.0.0 || ^2.0.0')
-  } catch {}
+    api.compatibleWith('@quasar/app-vite', '^2.3.0');
+  } catch { }
 
-  // extend quasar.conf
+  // Extend Quasar conf
   api.extendQuasarConf((conf) => {
-    // Ensure arrays exist
-    conf.boot = conf.boot || []
-    conf.ssr = conf.ssr || {}
-    conf.ssr.middlewares = conf.ssr.middlewares || []
-    conf.framework = conf.framework || {}
+    conf.boot = conf.boot || [];
+    conf.ssr = conf.ssr || {};
+    conf.ssr.middlewares = conf.ssr.middlewares || [];
+    conf.framework = conf.framework || {};
 
-    // Add our boot files by reference to your package
-    const bootEntries = [
-      { path: '~@ugursahinkaya/ssg/boot-server', client: false },
-      { path: '~@ugursahinkaya/ssg/boot-client', server: false }
-    ]
+    // Boot entries
+    pushBootOnce(conf, { path: '~@ugursahinkaya/ssg/boot-server', client: false });
+    pushBootOnce(conf, { path: '~@ugursahinkaya/ssg/boot-client', server: false });
 
-    // merge without duplicates
-    const asKey = (b) => `${b.path}|${b.client===false?'client:false':''}|${b.server===false?'server:false':''}`
-    const existing = new Set((conf.boot || []).map(asKey))
-    for (const b of bootEntries) {
-      if (!existing.has(asKey(b))) conf.boot.push(b)
-    }
-
-    // SSR middleware (reference the package directly)
+    // SSR middleware
     if (!conf.ssr.middlewares.includes('~@ugursahinkaya/ssg/render-middleware')) {
-      conf.ssr.middlewares.push('~@ugursahinkaya/ssg/render-middleware')
+      conf.ssr.middlewares.push('~@ugursahinkaya/ssg/render-middleware');
     }
 
-    // Framework: ensure Meta plugin
-    const plugins = new Set(conf.framework.plugins || [])
-    plugins.add('Meta')
-    conf.framework.plugins = Array.from(plugins)
+    // Quasar Meta plugin
+    const plugins = new Set(conf.framework.plugins || []);
+    plugins.add('Meta');
+    conf.framework.plugins = Array.from(plugins);
+  });
 
-    // Optional: default language 'tr' if not set
-    conf.framework.lang = conf.framework.lang || 'tr'
-
-    // Example: dev server host/allowedHosts (optional)
-    conf.build = conf.build || {}
-    const prevExtend = conf.build.extendViteConf
-    conf.build.extendViteConf = function (viteConf, ctx) {
-      viteConf.server = viteConf.server || {}
-      if (viteConf.server.host == null) viteConf.server.host = true
-      viteConf.server.allowedHosts = Array.from(new Set([...(viteConf.server.allowedHosts || []), 'ssr.bartin.edu.tr']))
-      if (typeof prevExtend === 'function') return prevExtend(viteConf, ctx)
-    }
-  })
-
-  // On install: write src-ssr/server.ts if missing
+  // Install-time filesystem ops
   api.onInstall(() => {
-    const fs = require('fs')
-    const path = require('path')
-    const appRoot = api.resolve.app()
-    const serverTs = path.join(appRoot, 'src-ssr', 'server.ts')
-    const serverJs = path.join(appRoot, 'src-ssr', 'server.js')
+    const appRoot = api.resolve.app();
 
-    const hasServerEntry = fs.existsSync(serverTs) || fs.existsSync(serverJs)
-    if (!hasServerEntry) {
-      api.render('./src/templates/server.ts.ejs', {}, { force: true, path: 'src-ssr/server.ts' })
-      api.log('Created src-ssr/server.ts passthrough to @ugursahinkaya/ssg/server')
+    // 1) SSR bridge
+    try {
+      const serverTs = path.join(appRoot, 'src-ssr', 'server.ts');
+      const serverJs = path.join(appRoot, 'src-ssr', 'server.js');
+      if (!fs.existsSync(serverTs) && !fs.existsSync(serverJs)) {
+        writeFromTemplate(api, './src/templates/server.ts.ejs', 'src-ssr/server.ts', { force: true });
+        api.log('Created src-ssr/server.ts passthrough to @ugursahinkaya/ssg/server');
+      }
+    } catch (e) {
+      api.warn(`Skipping server.ts generation: ${e?.message || e}`);
     }
-  })
 
-  // Command to force re-generate server.ts
+    // 2) DynamicLayout.vue
+    try {
+      const target = path.join(appRoot, 'src', 'layouts', 'DynamicLayout.vue');
+      if (!fs.existsSync(target)) {
+        writeFromTemplate(api, './src/templates/DynamicLayout.vue.ejs', 'src/layouts/DynamicLayout.vue', { force: true });
+        api.log('Created layouts/DynamicLayout.vue from template');
+      }
+    } catch (e) {
+      api.warn(`Skipping DynamicLayout.vue generation: ${e?.message || e}`);
+    }
+
+    // 3) Router override (home route)
+    try {
+      const routerFile = findRouterFile(appRoot);
+      if (!routerFile) {
+        api.warn('Router file not found (index.ts/js or routes.ts/js). Skipping route override.');
+      } else {
+        let code = fs.readFileSync(routerFile, 'utf8');
+        const res1 = overrideHomeRouteComponent(code);
+        if (res1.changed) {
+          fs.writeFileSync(routerFile, res1.code, 'utf8');
+          api.log('Overridden existing "/" route to use DynamicLayout.vue');
+        } else if (res1.reason === 'no-home-route') {
+          const res2 = addHomeRouteIfMissing(code);
+          if (res2.changed) {
+            fs.writeFileSync(routerFile, res2.code, 'utf8');
+            api.log('Added new "/" route using DynamicLayout.vue');
+          } else {
+            api.log(`Router unchanged (${res1.reason} | ${res2.reason}).`);
+          }
+        } else {
+          api.log(`Router unchanged (${res1.reason}).`);
+        }
+      }
+    } catch (e) {
+      api.warn(`Router override skipped due to error: ${e?.message || e}`);
+    }
+  });
+
+  // Uninstall-time cleanup
+  api.onUninstall(() => {
+    const appRoot = api.resolve.app();
+
+    // Remove our generated SSR bridge if it matches signature
+    const serverTs = path.join(appRoot, 'src-ssr', 'server.ts');
+    const removedServer = safeDeleteFile(serverTs, "@ugursahinkaya/ssg/server");
+    if (removedServer) api.log('Removed src-ssr/server.ts created by this extension');
+
+    // Remove our DynamicLayout if it matches signature
+    const dynLayout = path.join(appRoot, 'src', 'layouts', 'DynamicLayout.vue');
+    const removedLayout = safeDeleteFile(dynLayout, "@ugursahinkaya/ssg/layout-component");
+    if (removedLayout) api.log('Removed layouts/DynamicLayout.vue created by this extension');
+
+    // Router: we do not revert edits automatically to avoid breaking user code.
+    api.log('onUninstall finished. Router changes were left intact on purpose.');
+  });
+
+  // Commands
   api.registerCommand('ssg:write-server', () => {
-    api.render('./src/templates/server.ts.ejs', {}, { force: true, path: 'src-ssr/server.ts' })
-    api.log('Rewrote src-ssr/server.ts from template.')
-  })
-}
+    try {
+      writeFromTemplate(api, './src/templates/server.ts.ejs', 'src-ssr/server.ts', { force: true });
+      api.log('Rewrote src-ssr/server.ts from template.');
+    } catch (e) {
+      api.warn(`Failed to rewrite server.ts: ${e?.message || e}`);
+    }
+  });
+};

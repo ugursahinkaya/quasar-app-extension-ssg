@@ -1,57 +1,32 @@
-# @ugursahinkaya/quasar-app-extension-ssg
+# @ugursahinkaya/quasar-app-extension-ssg (refined)
 
-Quasar App Extension that integrates **@ugursahinkaya/ssg** into a Quasar app:
-- Adds boot files (client/server) **by reference** to your package
+Quasar App Extension that integrates **@ugursahinkaya/ssg** into a Quasar app while keeping your project minimal.
+
+## What this AE does
+
+- Adds boot files **by reference** to your package
 - Adds SSR render middleware **by reference**
-- Optionally generates `src-ssr/server.ts` passthrough file on install
+- Generates `src-ssr/server.ts` **once** (passthrough to `@ugursahinkaya/ssg/server`)
+- Creates `src/layouts/DynamicLayout.vue` from template
+- Overrides only the **home (`'/'`) route's component** to use `DynamicLayout.vue` (or injects it if missing)
+- Provides `quasar ssg:write-server` to re-generate the SSR bridge
+- Implements **onUninstall** to remove generated files safely (only if they match the template signature)
 
-> This keeps the main Quasar project minimal and delegates SSR + meta + layout guts to `@ugursahinkaya/ssg`.
-
-## Install (local dev)
-
-```bash
-# inside this repo
-npm i
-npm link
-
-# in your Quasar project
-npm link @ugursahinkaya/quasar-app-extension-ssg
-quasar ext add @ugursahinkaya/quasar-app-extension-ssg
-```
-
-Alternatively, install from a local path:
-```bash
-quasar ext add file:/absolute/path/to/quasar-app-extension-ssg
-```
-
-## What it does
-
-- Extends `quasar.config.*`:
-  - `boot`: adds
-    - `~@ugursahinkaya/ssg/boot-server` (client: false)
-    - `~@ugursahinkaya/ssg/boot-client` (server: false)
-  - `ssr.middlewares`: adds
-    - `~@ugursahinkaya/ssg/render-middleware`
-  - Ensures `framework.plugins` includes `"Meta"`
-  - (Optional) sets `framework.lang = 'tr'` if missing
-  - (Optional) sets `viteConf.server.host = true` and `allowedHosts = ['ssr.bartin.edu.tr']`
-
-- Writes `src-ssr/server.ts` on install if missing, with a tiny passthrough to `@ugursahinkaya/ssg/server`.
-
-## Commands
+## Install (dev)
 
 ```bash
-# force re-generate src-ssr/server.ts from template
-quasar ssg:write-server
+pnpm i
+# publish or pack, then in your Quasar project:
+# pnpm add <tarball | npm package>
+# quasar ext add @ugursahinkaya/ssg
 ```
 
 ## Uninstall
 
 ```bash
-quasar ext remove @ugursahinkaya/quasar-app-extension-ssg
+quasar ext remove @ugursahinkaya/ssg
+# AE will try to remove:
+# - src-ssr/server.ts (only if it imports @ugursahinkaya/ssg/server)
+# - src/layouts/DynamicLayout.vue (only if it imports our LayoutComponent)
+# Router changes are left intact to avoid breaking your app.
 ```
-
-## Notes
-
-- Quasar CLI requires an actual `src-ssr/server.(js|ts)` entry file; we generate a one-liner bridge.
-- Boot files & middleware are referenced directly from `@ugursahinkaya/ssg`, so there’s no duplication here.
