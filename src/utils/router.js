@@ -17,7 +17,7 @@ function overrideHomeRouteComponent(code) {
   if (code.includes("layouts/DynamicLayout.vue")) {
     return { changed: false, code, reason: 'already-using-dynamic-layout' };
   }
-  const pathMatch = code.match(/path:\s*['"]\/['"]/);
+  const pathMatch = code.match(/path:\s*['"]\\/['"]/);
   if (!pathMatch) {
     return { changed: false, code, reason: 'no-home-route' };
   }

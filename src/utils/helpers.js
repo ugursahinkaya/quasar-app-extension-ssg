@@ -9,10 +9,6 @@ function pushBootOnce(conf, entry) {
   if (!existing.has(key)) conf.boot.push(entry);
 }
 
-function writeFromTemplate(api, templateRelPath, targetRelPath, { force = true } = {}) {
-  api.render(templateRelPath, {}, { force, path: targetRelPath });
-}
-
 function safeDeleteFile(targetAbsPath, mustContain) {
   try {
     if (fs.existsSync(targetAbsPath)) {
@@ -28,6 +24,5 @@ function safeDeleteFile(targetAbsPath, mustContain) {
 
 module.exports = {
   pushBootOnce,
-  writeFromTemplate,
   safeDeleteFile
 };
