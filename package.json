@@ -1,0 +1,34 @@
+{
+  "name": "@ugursahinkaya/quasar-app-extension-ssg",
+  "version": "0.1.0",
+  "private": false,
+  "type": "commonjs",
+  "description": "Quasar App Extension that wires @ugursahinkaya/ssg into a Quasar app (boot, SSR middleware, server entry passthrough).",
+  "main": "src/index.js",
+  "files": [
+    "src"
+  ],
+  "keywords": [
+    "quasar",
+    "app-extension",
+    "ssr",
+    "vite",
+    "meta"
+  ],
+  "author": "Uğur Şahinkaya",
+  "license": "MIT",
+  "peerDependencies": {
+    "quasar": "^2.16.0",
+    "@quasar/app-vite": "^2.1.0",
+    "vue": "^3.4.18"
+  },
+  "dependencies": {
+    "@ugursahinkaya/ssg": "^2.1.2"
+  },
+  "quasar": {
+    "compatibility": {
+      "quasar": "^2",
+      "@quasar/app-vite": "^2"
+    }
+  }
+}
