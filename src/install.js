@@ -6,7 +6,7 @@ const path = require('path');
 const { findRouterFile, overrideHomeRouteComponent, addHomeRouteIfMissing } = require('./utils/router');
 
 module.exports = function (api) {
-  const appRoot = api.resolve.app();
+  const appRoot = api.appDir || process.cwd();
 
   try {
     const serverTs = path.join(appRoot, 'src-ssr', 'server.ts');

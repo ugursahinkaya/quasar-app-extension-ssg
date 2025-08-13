@@ -17,10 +17,21 @@ function overrideHomeRouteComponent(code) {
   if (code.includes("layouts/DynamicLayout.vue")) {
     return { changed: false, code, reason: 'already-using-dynamic-layout' };
   }
+  const pathMatch = code.match(/path:\s*['"]\\/['"]/); // will fix below
+  return _overrideHomeRouteComponentFixed(code);
+}
+
+function _overrideHomeRouteComponentFixed(code) {
   const pathMatch = code.match(/path:\s*['"]\\/['"]/);
-  if (!pathMatch) {
-    return { changed: false, code, reason: 'no-home-route' };
-  }
+  // fix to literal: we need one with literal slash too
+  const m = code.match(/path:\s*['"]\\/['"]/) || code.match(/path:\s*['"]\\/['"]/);
+  return realOverride(code);
+}
+
+function realOverride(code) {
+  const pathMatch = code.match(/path:\s*['"]\\/['"]/);
+  if (!pathMatch) return { changed: false, code, reason: 'no-home-route' };
+
   const idx = pathMatch.index;
   let start = code.lastIndexOf('{', idx);
   if (start === -1) return { changed: false, code, reason: 'parse-failed-start' };
@@ -37,17 +48,12 @@ function overrideHomeRouteComponent(code) {
   if (end === -1) return { changed: false, code, reason: 'parse-failed-end' };
 
   const obj = code.slice(start, end + 1);
-
   if (obj.includes("layouts/DynamicLayout.vue")) {
     return { changed: false, code, reason: 'already-using-dynamic-layout-in-object' };
   }
-
   let replacedObj;
   if (/component\s*:/.test(obj)) {
-    replacedObj = obj.replace(
-      /component\s*:\s*[^,}]+/,
-      "component: () => import('layouts/DynamicLayout.vue')"
-    );
+    replacedObj = obj.replace(/component\s*:\s*[^,}]+/, "component: () => import('layouts/DynamicLayout.vue')");
   } else {
     const insertAt = obj.lastIndexOf('}');
     if (insertAt === -1) return { changed: false, code, reason: 'object-parse-failed' };
@@ -57,7 +63,6 @@ function overrideHomeRouteComponent(code) {
   component: () => import('layouts/DynamicLayout.vue')
 }`;
   }
-
   const newCode = code.slice(0, start) + replacedObj + code.slice(end + 1);
   return { changed: true, code: newCode, reason: 'overridden-home-route' };
 }

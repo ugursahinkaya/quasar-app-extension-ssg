@@ -1,6 +1,6 @@
 {
   "name": "@ugursahinkaya/quasar-app-extension-ssg",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": false,
   "type": "commonjs",
   "description": "Quasar App Extension that wires @ugursahinkaya/ssg into a Quasar app (boot, SSR middleware, server entry passthrough).",
